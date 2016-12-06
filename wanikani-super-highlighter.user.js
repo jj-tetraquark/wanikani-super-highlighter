@@ -79,7 +79,7 @@ function getApiKeyThen(callback) {
     // First check if the API key is in local storage.
     if (!window.location.hostname.includes("wanikani")) {
         Log("Not on wanikani.com, cannot fetch api key");
-        callback("");
+        return callback("");
     }
 
     var api_key = localStorage.getItem('apiKey');
@@ -202,7 +202,7 @@ function loadWaniKaniDataThen(callback) {
 }
 
 function main() {
-
+    SHEnableLogging();
     waiting = setInterval(function() {
         if (waitForBreakPoints) {
             Log("Waiting for breakpoints", WARNING);
