@@ -33,8 +33,10 @@ var PURPLE   = "#a000f1";
 
 // Globals....ewww
 var WKSHLoggingEnabled = (GM_getValue("WKSHLoggingEnabled") == "true");
+waitForBreakPoints = false;
 
 WKSHData = { Kanji: [], Vocab: [] };
+
 
 function Log(logdata, level) {
     level = (typeof level == "undefined") ? DEBUG : level;
@@ -64,15 +66,23 @@ window.SHDisableLogging = function() {
     GM_deleteValue("WKSHLoggingEnabled");
 };
 
-window.loadWaniKaniDataToGMStorage() {
-    loadWaniKaniDataThen(function() { Log("done!") }
-}
+loadWaniKaniDataToGMStorage = function() {
+    getApiKeyThen(function(api_key) {
+        apiKey = api_key; //global
+        loadWaniKaniDataThen(function() { Log("done!"); });
+    });
+};
 
 // This should probably only work on the WaniKani page
 function getApiKeyThen(callback) {
 
     // First check if the API key is in local storage.
-    var api_key = localStorage.getValue('apiKey');
+    if (!window.location.hostname.includes("wanikani")) {
+        Log("Not on wanikani.com, cannot fetch api key");
+        callback("");
+    }
+
+    var api_key = localStorage.getItem('apiKey');
     if (typeof api_key !== 'string' || api_key.length !== 32) {
 
         // We don't have the API key.  Fetch it from the /account page.
@@ -85,7 +95,7 @@ function getApiKeyThen(callback) {
                 api_key = $(page).find('#api-button').parent().find('input').attr('value');
                 if (typeof api_key == 'string' && api_key.length == 32) {
                     // Store the updated user info.
-                    localStorage.setValue('apiKey', api_key);
+                    localStorage.setItem('apiKey', api_key);
                 }
             });
     }
@@ -105,10 +115,6 @@ function displayVocabLoadingMessage() {
     displayLoadingMessage("Retrieving vocabulary data...");
 }
 
-
-function itemIsBurned(item) {
-    return item.user_specific ? item.user_specific.burned : false;
-}
 
 function getMeaning(item) {
     var usyn = item.user_specific ? item.user_specific.user_synonyms : null;
@@ -144,7 +150,6 @@ function fetchAndCacheLearnedItemsThen(callback, requestedResource, type, storag
             // vocabulary for some reason has everything in a child called general, kanji and radicals do not
             var requestData = response.requested_information.general ?
                                 response.requested_information.general : response.requested_information;
-            var learnedItems = requestData.filter(itemIsBurned);
             WKSHData[type] = learnedItems.map(mapFunction);
 
             GM_setValue(storageKey, JSON.stringify(WKSHData[type]));
@@ -166,7 +171,7 @@ function maybeGetLearnedItemsThen(callback, storageKey, type, fetchFunction) {
             Log("No learned " + type + " in cache. Refectching...", WARNING);
         }
         catch(e) {
-            Log("Could not parse cached radical data. Refetching...", WARNING);
+            Log("Could not parse cached" + type + " data. Refetching...", WARNING);
         }
     }
     return fetchFunction(callback);
@@ -189,8 +194,7 @@ function loadWaniKaniDataThen(callback) {
     maybeGetLearnedKanjiThen(function() {
         maybeGetLearnedVocabThen(function() {
 
-            Log("Data items { RadicalData: " + WKSHData.Radicals.length +
-                             "; KanjiData: " + WKSHData.Kanji.length +
+            Log("Data items { KanjiData: " + WKSHData.Kanji.length +
                              "; VocabData: " + WKSHData.Vocab.length + "}");
             callback();
         });
@@ -199,11 +203,22 @@ function loadWaniKaniDataThen(callback) {
 
 function main() {
 
+    waiting = setInterval(function() {
+        if (waitForBreakPoints) {
+            Log("Waiting for breakpoints", WARNING);
+        }
+        else {
+            clearInterval(waiting);
+            loadWaniKaniDataToGMStorage();
+        }
+    }, 3000);
 }
 
-if (document.readyState === 'complete')
+if (document.readyState === 'complete') {
     main();
-else
+}
+else {
     window.addEventListener("load", main, false);
-
+}
 // ==/UserScript==
+
