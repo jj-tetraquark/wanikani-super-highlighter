@@ -93,7 +93,7 @@ function loadWaniKaniLearnedItemsThen(callback) {
         });
     }
     else {
-        Log("Please go to wanikani.com to update kanji cache");
+        tellUserToGoToWaniKani();
     }
 
 }
@@ -176,6 +176,7 @@ function fetchAndCacheAllLearnedWaniKaniItemsThen(apiKey, callback) {
 }
 
 function fetchAndCacheLearnedKanjiThen(apiKey, callback) {
+    displayKanjiLoadingMessage();
     fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, "kanji", "Kanji", "WKLearnedKanji",
         function(kanji) {
             return { character   : kanji.character,
@@ -186,6 +187,7 @@ function fetchAndCacheLearnedKanjiThen(apiKey, callback) {
 }
 
 function fetchAndCacheLearnedVocabThen(apiKey, callback) {
+    displayVocabLoadingMessage();
     fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, "vocabulary", "Vocab", "WKLearnedVocab",
         function(vocab) {
             return { character   : vocab.character,
@@ -228,6 +230,11 @@ function fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, requestedResour
 }
 
 
+/******************************************************************************
+ * *********************** Display to User Messages ***************************
+ * ***************************************************************************/
+
+
 function displayKanjiLoadingMessage() {
     Log("Retrieving kanji data...");
 }
@@ -236,11 +243,14 @@ function displayVocabLoadingMessage() {
     Log("Retrieving vocabulary data...");
 }
 
+function tellUserToGoToWaniKani() {
+    Log("Please go to wanikani.com to update kanji cache");
+}
+
 
 /******************************************************************************
- * *****************END - Fetching and caching WaniKani data*******************
+ * **************************** Main ******************************************
  * ***************************************************************************/
-
 
 function maybeWaitToSetBreakpointsThen(callback) {
     if (waitForBreakpoints) {
