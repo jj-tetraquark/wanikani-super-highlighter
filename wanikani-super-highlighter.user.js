@@ -82,25 +82,12 @@ clearWKSHCache = function() {
     GM_deleteValue("WKLearnedVocab");
 };
 
-function loadWaniKaniLearnedItemsThen(callback) {
-    // try and load from cache
-    if (successfullyLoadedCachedLearnedItems()) {
-        callback();
-    }
-    else if(hostIsWaniKani()) {
-        getApiKeyThen(function(api_key) {
-            fetchAndCacheAllLearnedWaniKaniItemsThen(api_key, callback);
-        });
-    }
-    else {
-        tellUserToGoToWaniKani();
-    }
 
-}
 
-function hostIsWaniKani() {
-    return window.location.hostname.includes("wanikani");
-}
+
+/******************************************************************************
+ * ********************Fetching and caching WaniKani data**********************
+ * ***************************************************************************/
 
 function successfullyLoadedCachedLearnedItems() {
     return maybeLoadWaniKaniDataFromCache("WKLearnedKanji", "Kanji") &&
@@ -124,10 +111,6 @@ function maybeLoadWaniKaniDataFromCache(storageKey, type) {
     }
     return false;
 }
-
-/******************************************************************************
- * ********************Fetching and caching WaniKani data**********************
- * ***************************************************************************/
 
 // This should probably only work on the WaniKani page
 function getApiKeyThen(callback) {
@@ -247,10 +230,13 @@ function tellUserToGoToWaniKani() {
     Log("Please go to wanikani.com to update kanji cache");
 }
 
-
 /******************************************************************************
- * **************************** Main ******************************************
+ * *********************** Misc Helper methods ******************************
  * ***************************************************************************/
+
+function hostIsWaniKani() {
+    return window.location.hostname.includes("wanikani");
+}
 
 function maybeWaitToSetBreakpointsThen(callback) {
     if (waitForBreakpoints) {
@@ -268,6 +254,26 @@ function maybeWaitToSetBreakpointsThen(callback) {
         callback();
     }
 }
+
+/******************************************************************************
+ * **************************** Main ******************************************
+ * ***************************************************************************/
+
+function loadWaniKaniLearnedItemsThen(callback) {
+    // try and load from cache
+    if (successfullyLoadedCachedLearnedItems()) {
+        callback();
+    }
+    else if(hostIsWaniKani()) {
+        getApiKeyThen(function(api_key) {
+            fetchAndCacheAllLearnedWaniKaniItemsThen(api_key, callback);
+        });
+    }
+    else {
+        tellUserToGoToWaniKani();
+    }
+}
+
 
 if (typeof running == 'undefined') running = false;
 function main() {
