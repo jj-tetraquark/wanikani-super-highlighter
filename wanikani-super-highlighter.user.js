@@ -13,6 +13,7 @@
 // @grant       GM_getValue
 // @grant       GM_setValue
 // @grant       GM_deleteValue
+// @noframes
 
 
 // CONSTANTS
@@ -293,6 +294,16 @@ function tagKnownKanji() {
     document.body.innerHTML = taggedHTML;
 }
 
+function setTagClassesToSRSLevel() {
+    var taggedKanji = document.getElementsByTagName("wksh");
+    var matchesKanji = function(k) { return k.character == this; };
+
+    for (var i = 0; i < taggedKanji.length; i++) {
+        character = taggedKanji[i].innerText;
+        taggedKanji[i].className += " " + WKSHData.Kanji.find(matchesKanji, character).srs;
+    }
+}
+
 if (typeof running == 'undefined') running = false;
 function main() {
     if (!running) { // stop this from being called multiple times
@@ -302,6 +313,7 @@ function main() {
                 Log("Data items { KanjiData: " + WKSHData.Kanji.length +
                                  "; VocabData: " + WKSHData.Vocab.length + "}");
                 tagKnownKanji();
+                setTagClassesToSRSLevel();
                 Log("done!");
             });
         });
