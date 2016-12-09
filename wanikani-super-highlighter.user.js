@@ -285,6 +285,12 @@ function addStyles() {
     document.head.appendChild(styles);
 }
 
+function tagKnownVocab() {
+    //TODO - verb and adjective conjugations
+    var knownVoabRegexString = WKSHData.Vocab.map(function(x) { return "(" + x.character + ")";}).join("|");
+    var vocabRegex = new RegExp(knownVocabRegexString, 'g');
+    // TODO - I think it makes sense to tag vocab first and then kanji
+}
 function tagKnownKanji() {
     var stringOfKnownKanji = WKSHData.Kanji.map(function(k) { return k.character; }).join('');
     // Doing it this way may screw with some more complex web apps. Might be safer to do it by traversing the DOM
