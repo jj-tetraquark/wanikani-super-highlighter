@@ -260,6 +260,9 @@ function maybeWaitToSetBreakpointsThen(callback) {
  * ***************************************************************************/
 
 function loadWaniKaniLearnedItemsThen(callback) {
+    //TODO need to make some sort of checking to ensure cache is up to date.
+    // Maybe should always update if on wanikani!
+
     // try and load from cache
     if (successfullyLoadedCachedLearnedItems()) {
         callback();
@@ -274,6 +277,21 @@ function loadWaniKaniLearnedItemsThen(callback) {
     }
 }
 
+// TODO - could possible programattically fetch all styles using document.styleSheets
+// and dynamically generate appropriate styles depending on the page...
+function addStyles() {
+    var styles = document.createElement("style");
+    document.head.appendChild(styles);
+}
+
+function tagKnownKanji() {
+    var stringOfKnownKanji = WKSHData.Kanji.map(function(k) { return k.character; }).join('');
+    // Doing it this way may screw with some more complex web apps. Might be safer to do it by traversing the DOM
+    // Also interferes with RES
+    var kanjiRegex = new RegExp('[' + stringOfKnownKanji + '](?![^<>]*>)', 'g');
+    var taggedHTML = document.body.innerHTML.replace(kanjiRegex, '<wksh class="known-kanji">$&</wksh>');
+    document.body.innerHTML = taggedHTML;
+}
 
 if (typeof running == 'undefined') running = false;
 function main() {
@@ -283,6 +301,7 @@ function main() {
             loadWaniKaniLearnedItemsThen(function() {
                 Log("Data items { KanjiData: " + WKSHData.Kanji.length +
                                  "; VocabData: " + WKSHData.Vocab.length + "}");
+                tagKnownKanji();
                 Log("done!");
             });
         });
