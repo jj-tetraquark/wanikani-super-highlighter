@@ -39,6 +39,7 @@ var waitForBreakpoints = Boolean(GM_getValue("WKSHwaitForBreakpoint"));
 
 WKSHData = { Kanji: [], Vocab: [] };
 
+var godanExceptions = "嘲る焦る脂ぎる熱る弄るいびる煎る炒る熬る入る要るうねる彫る選る陥る落ち入る阿る還る帰る孵る返る反る限る翔る陰る呪る齧る噛る軋る轢る切る剪る斬る霧る抉る愚痴る覆るくねる縊る蹴る抉る遮る湿気る茂る湿る喋る知る捩る滑るせびる競る謗る譏る誹るそべる滾る猛る駄弁る魂消る契る散る抓る照るどじるとちる迸る詰る滑る握る躙る滑る捩じる捻じる練る錬る煉る粘る罵るのめる入る走る侍る捻るびびる翻る耽る臥せる減る謙る穿る火照る熱る迸る参る交じる混じる雑じる見縊る漲る毟る滅入る減る捩る野次る弥次るよぎる捩る蘇る甦る";
 
 function Log(logdata, level) {
     level = (typeof level == "undefined") ? DEBUG : level;
@@ -175,12 +176,24 @@ function fetchAndCacheLearnedVocabThen(apiKey, callback) {
     fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, "vocabulary", "Vocab", "WKLearnedVocab",
         function(vocab) {
             return { character   : vocab.character,
+                     inflections : getInflections(vocab),
                      meaning     : getMeaning(vocab),
                      kana        : vocab.kana.split(", "),
                      srs         : getSrs(vocab),
                      srs_numeric : getSrsNumeric(vocab)
             };
         });
+}
+
+function getInflections(item) {
+    if (isAVerb(item)) {
+        return getVerbInflections(item);
+    }
+    return "";
+}
+
+function isAVerb(item) {
+    return item.meaning.startsWith('to ');
 }
 
 function getMeaning(item) {
@@ -213,6 +226,29 @@ function fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, requestedResour
         });
 }
 
+function getVerbInflections(verb) {
+	if (isIchidan(verb)) {
+		return getIchidanInflections(verb);
+	}
+	return "";
+}
+
+function isIchidan(verb) {
+    if (!verb.character.endsWith('る')) return false;
+    var eandisounds = "えけげめへべせぜねれてでいきぎみひびしじにりちぢ";
+    var kana = verb.kana;
+    if (!eandisounds.includes(kana[kana.length - 2])) return false;
+	if (godanExceptions.indexOf(verb.character) !== -1) return false;
+
+	return true;
+}
+
+function getIchidanInflections(verb) {
+	var stem = verb.character.slice(0, -1);
+    var endings = ['ない','ます','ません','た','なかった','ました','て','なくて','られる',
+                    'られない','れる','れない', 'させる','させない','させられる','させられない', 'ろ'];
+	return endings.map(function(v) { return stem + v; });
+}
 
 /******************************************************************************
  * *********************** Display to User Messages ***************************
@@ -234,6 +270,11 @@ function tellUserToGoToWaniKani() {
 /******************************************************************************
  * *********************** Misc Helper methods ******************************
  * ***************************************************************************/
+
+function pageContainsJapanese() {
+    var japaneseRegex = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf]/g;
+    return japaneseRegex.exec(document.body.innerText) !== null;
+}
 
 function hostIsWaniKani() {
     return window.location.hostname.includes("wanikani");
@@ -305,25 +346,28 @@ function setTagClassesToSRSLevel() {
     var matchesKanji = function(k) { return k.character == this; };
 
     for (var i = 0; i < taggedKanji.length; i++) {
-        character = taggedKanji[i].innerText;
+        character = taggedKanji[i].innerHTML;
         taggedKanji[i].className += " " + WKSHData.Kanji.find(matchesKanji, character).srs;
     }
 }
 
 if (typeof running == 'undefined') running = false;
 function main() {
-    if (!running) { // stop this from being called multiple times
-        running = true;
-        maybeWaitToSetBreakpointsThen(function() {
-            loadWaniKaniLearnedItemsThen(function() {
-                Log("Data items { KanjiData: " + WKSHData.Kanji.length +
-                                 "; VocabData: " + WKSHData.Vocab.length + "}");
-                tagKnownKanji();
-                setTagClassesToSRSLevel();
-                Log("done!");
-            });
+
+    if (!pageContainsJapanese()) return;
+    if (running) return; // stop this from being called multiple times
+
+    running = true;
+    maybeWaitToSetBreakpointsThen(function() {
+        loadWaniKaniLearnedItemsThen(function() {
+            Log("Data items { KanjiData: " + WKSHData.Kanji.length +
+                             "; VocabData: " + WKSHData.Vocab.length + "}");
+            tagKnownKanji();
+            setTagClassesToSRSLevel();
+            Log("done!");
         });
-    }
+    });
+
 }
 
 if (document.readyState === 'complete') {
