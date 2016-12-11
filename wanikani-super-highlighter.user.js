@@ -189,7 +189,7 @@ function getInflections(item) {
     if (isAVerb(item)) {
         return getVerbInflections(item);
     }
-    return "";
+    return [];
 }
 
 function isAVerb(item) {
@@ -216,7 +216,13 @@ function fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, requestedResour
             // vocabulary for some reason has everything in a child called general, kanji and radicals do not
             var requestData = response.requested_information.general ?
                                 response.requested_information.general : response.requested_information;
-            WKSHData[type] = requestData.map(mappingFunction);
+            // Sort by length (largest first) here so longer words are matched in the regex later
+            WKSHData[type] = requestData.map(mappingFunction).sort(
+                function(a, b) {
+                    var alen = a.character.length;
+                    var blen = b.character.length;
+                    return alen == blen ? 0 : alen > blen ? -1 : 1;
+            });
 
             GM_setValue(storageKey, JSON.stringify(WKSHData[type]));
             callback();
@@ -228,7 +234,8 @@ function fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, requestedResour
 
 function getVerbInflections(verb) {
     if (isSuru(verb)) {
-        return Log("Suru inflections not defined", WARNING);
+        Log("Suru inflections not defined", WARNING);
+        return [];
     } else if (verb.character === "来る") {
         return getKuruInflections(verb);
     }
@@ -378,6 +385,8 @@ function maybeWaitToSetBreakpointsThen(callback) {
 function loadWaniKaniLearnedItemsThen(callback) {
     //TODO need to make some sort of checking to ensure cache is up to date.
     // Maybe should always update if on wanikani!
+    //TODO - if we make this a chrome extension we can do cross-site requests
+    // Though we can also do this with GM_xmlHttpRequest
 
     // try and load from cache
     if (successfullyLoadedCachedLearnedItems()) {
@@ -400,23 +409,62 @@ function addStyles() {
     document.head.appendChild(styles);
 }
 
-function tagKnownVocab() {
-    //TODO - verb and adjective conjugations
-    var knownVoabRegexString = WKSHData.Vocab.map(function(x) { return "(" + x.character + ")";}).join("|");
-    var vocabRegex = new RegExp(knownVocabRegexString, 'g');
-    // TODO - I think it makes sense to tag vocab first and then kanji
+//TODO -  this is quite ineffeicient, build the regex at get time
+function getVocabRegexFromPlain(item) {
+   var infl = item.inflections.map(
+                function(i) {
+                    return i.substring(item.character.length -1);
+                }).concat(item.character[item.character.length - 1]).join('|');
+       return '(' + item.character.slice(0, -1) + '(' + infl + '))';
 }
+
+
+function applyTag(node, match, tagName) {
+    var tag = document.createElement(tagName);
+    node.splitText(match.index+match[0].length);
+    tag.appendChild(node.splitText(match.index));
+    node.parentNode.insertBefore(tag, node.nextSibling);
+}
+
+function tagMatches(element, pattern, tag) {
+    for (var childi = element.childNodes.length; childi-- > 0;) {
+        var child = element.childNodes[childi];
+        if (child.nodeType == 1) {
+            tagMatches(child, pattern, tag);
+        }
+        else if (child.nodeType == 3) {
+            var matches = [];
+            var match;
+            // will return null when no more matches
+            while (match = pattern.exec(child.data)) { // jshint ignore:line
+                matches.push(match);
+            }
+            for (var i = matches.length; i -- >0;) {
+                applyTag(child, matches[i], tag);
+            }
+        }
+    }
+}
+
+function tagKnownVocab() {
+    //TODO - adjective conjugations
+    var start = performance.now();
+
+    var knownVocabRegexString = WKSHData.Vocab.map(getVocabRegexFromPlain).join("|");
+    var vocabRegex = new RegExp(knownVocabRegexString, 'g');
+    tagMatches(document.body, vocabRegex, 'wkshv');
+
+    Log('replace time: ' + (performance.now() - start));
+}
+
 function tagKnownKanji() {
     var stringOfKnownKanji = WKSHData.Kanji.map(function(k) { return k.character; }).join('');
-    // Doing it this way may screw with some more complex web apps. Might be safer to do it by traversing the DOM
-    // Also interferes with RES
-    var kanjiRegex = new RegExp('[' + stringOfKnownKanji + '](?![^<>]*>)', 'g');
-    var taggedHTML = document.body.innerHTML.replace(kanjiRegex, '<wksh class="known-kanji">$&</wksh>');
-    document.body.innerHTML = taggedHTML;
+    var kanjiRegex = new RegExp('[' + stringOfKnownKanji + ']', 'g');
+    tagMatches(document.body, kanjiRegex, 'wkshk');
 }
 
 function setTagClassesToSRSLevel() {
-    var taggedKanji = document.getElementsByTagName("wksh");
+    var taggedKanji = document.getElementsByTagName("wkshk");
     var matchesKanji = function(k) { return k.character == this; };
 
     for (var i = 0; i < taggedKanji.length; i++) {
@@ -436,6 +484,7 @@ function main() {
         loadWaniKaniLearnedItemsThen(function() {
             Log("Data items { KanjiData: " + WKSHData.Kanji.length +
                              "; VocabData: " + WKSHData.Vocab.length + "}");
+            tagKnownVocab();
             tagKnownKanji();
             setTagClassesToSRSLevel();
             Log("done!");
