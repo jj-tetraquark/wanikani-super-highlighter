@@ -227,10 +227,21 @@ function fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, requestedResour
 }
 
 function getVerbInflections(verb) {
-	if (isIchidan(verb)) {
+    if (isSuru(verb)) {
+        return Log("Suru inflections not defined", WARNING);
+    } else if (verb.character === "来る") {
+        return getKuruInflections(verb);
+    }
+    else if (isIchidan(verb)) {
 		return getIchidanInflections(verb);
 	}
-	return "";
+    else {
+        return getGodanInflections(verb);
+    }
+}
+
+function isSuru(verb) {
+    return verb.character.endsWith("する");
 }
 
 function isIchidan(verb) {
@@ -243,11 +254,74 @@ function isIchidan(verb) {
 	return true;
 }
 
+function getKuruInflections(verb) {
+    return getIchidanInflections(verb);
+}
+
 function getIchidanInflections(verb) {
 	var stem = verb.character.slice(0, -1);
     var endings = ['ない','ます','ません','た','なかった','ました','て','なくて','られる',
                     'られない','れる','れない', 'させる','させない','させられる','させられない', 'ろ'];
 	return endings.map(function(v) { return stem + v; });
+}
+
+function getGodanInflections(verb) {
+    var masuStem = godanPlainToMasuStem(verb.character);
+    var potentialStem = godanPlainToESoundStem(verb.character);
+    var aSoundStem = godanPlainToASoundStem(verb.character);
+    return [ getGodanNegative(verb), masuStem + "ます", masuStem + "ません", getGodanTa(verb),
+             getGodanNegativePast(verb), masuStem + "ました", getGodanTe(verb), getGodanNegativeTe(verb),
+             potentialStem + "る", potentialStem + "ない", aSoundStem + "れる", aSoundStem + "れない",
+             aSoundStem + "せる", aSoundStem + "せない", aSoundStem + "せられる", aSoundStem + "せられない",
+             potentialStem, verb.character + "な"];
+}
+
+function getGodanNegative(verb) {
+    return godanPlainToASoundStem(verb.character) + "ない";
+}
+
+function getGodanNegativePast(verb) {
+    return getGodanNegative(verb).slice(0, -1) + "かった";
+}
+
+function getGodanTa(verb) {
+    var ending = verb.character.slice(0, -1);
+    var ta = ending == 'ぐ' || ending == 'ぶ' ? "だ" : "た";
+    return godanPlainToTeStem(verb.character) + ta;
+}
+
+function getGodanTe(verb) {
+    var ending = verb.character.slice(0, -1);
+    var te = ending == 'ぐ' || ending == 'ぶ' ? "で" : "て";
+    return godanPlainToTeStem(verb.character) + te;
+}
+
+function getGodanNegativeTe(verb) {
+    return godanPlainToASoundStem(verb.character) + "なくて";
+}
+
+function godanPlainToTeStem(plainForm) {
+    var toTePrefix = {"う":"っ", "つ":"っ", "く":"い", "ぐ":"い",
+                     "ぶ":"ん", "む":"ん", "ぬ":"ん", "る":"っ", "す":"し"};
+    return plainForm.slice(0, -1) + toTePrefix[plainForm[plainForm.length -1]];
+}
+
+function godanPlainToMasuStem(plainForm) {
+    var toISound = { "う":"い", "つ":"ち", "く":"き", "ぐ":"ぎ",
+                     "ぶ":"び", "む":"み", "ぬ":"に", "る":"り", "す":"し"};
+    return plainForm.slice(0, -1) + toISound[plainForm[plainForm.length -1]];
+}
+
+function godanPlainToASoundStem(plainForm) {
+    var toASound = { "う":"わ", "つ":"た", "く":"か", "ぐ":"が",
+                     "ぶ":"ば", "む":"ま", "ぬ":"な", "る":"ら", "す":"さ"};
+    return plainForm.slice(0, -1) + toASound[plainForm[plainForm.length - 1]];
+}
+
+function godanPlainToESoundStem(plainForm) {
+    var toESound = { "う":"え", "つ":"て", "く":"け", "ぐ":"げ",
+                     "ぶ":"べ", "む":"め", "ぬ":"ね", "る":"れ", "す":"せ"};
+    return plainForm.slice(0, -1) + toESound[plainForm[plainForm.length - 1]];
 }
 
 /******************************************************************************
