@@ -411,12 +411,40 @@ function tagKnownKanji() {
 }
 
 function setTagClassesToSRSLevel() {
+    setKanjiTagClasesToSRSLevel();
+    setVocabTagClassesToSRSLevel();
+}
+
+function setKanjiTagClassesToSRSLevel() {
     var taggedKanji = document.getElementsByTagName("wkshk");
     var matchesKanji = function(k) { return k.character == this; };
 
     for (var i = 0; i < taggedKanji.length; i++) {
         character = taggedKanji[i].innerHTML;
         taggedKanji[i].className += " " + WKSHData.Kanji.find(matchesKanji, character).srs;
+    }
+}
+
+function setVocabTagClassesToSRSLevel() {
+    var taggedVocab = document.getElementsByTagName("wkshv");
+
+    if(taggedVocab.length === 0) return;
+
+    var matchesVocab = function(v) {
+        var allForms = v.character;
+        if (v.inflections.length > 0) {
+            var stem = v.character.slice(0, -1);
+            allForms = stem + v.inflections.join(stem);
+        }
+        var tempDiv = document.createElement('div');
+        tempDiv.innerHTML = this;
+
+        return allForms.includes(tempDiv.innerText);
+    };
+
+    for (var i = 0; i < taggedVocab.length; i++) {
+        extract = taggedVocab[i].innerHTML;
+        taggedVocab[i].className += " " + WKSHData.Vocab.find(matchesVocab, extract).srs;
     }
 }
 
