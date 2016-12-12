@@ -351,6 +351,76 @@ function tellUserToGoToWaniKani() {
 }
 
 /******************************************************************************
+ * ********************* Tagging vocab and kanji ******************************
+ * ***************************************************************************/
+//
+//TODO -  this is a little ineffeicient, build the regex at get time
+function getVocabRegex(item) {
+    var infl = '';
+    var stem = item.character;
+    if (item.inflections.length > 0) {
+        infl =  '(' + item.inflections.join('|') + ')';
+        stem =  stem.slice(0, -1);
+    }
+    return '(' + stem + infl + ')';
+}
+
+
+function applyTag(node, match, tagName) {
+    var tag = document.createElement(tagName);
+    node.splitText(match.index+match[0].length);
+    tag.appendChild(node.splitText(match.index));
+    node.parentNode.insertBefore(tag, node.nextSibling);
+}
+
+function tagMatches(element, pattern, tag) {
+    for (var childi = element.childNodes.length; childi-- > 0;) {
+        var child = element.childNodes[childi];
+        if (child.nodeType == 1) {
+            tagMatches(child, pattern, tag);
+        }
+        else if (child.nodeType == 3) {
+            var matches = [];
+            var match;
+            // will return null when no more matches
+            while (match = pattern.exec(child.data)) { // jshint ignore:line
+                matches.push(match);
+            }
+            for (var i = matches.length; i-- > 0;) {
+                applyTag(child, matches[i], tag);
+            }
+        }
+    }
+}
+
+function tagKnownVocab() {
+    //TODO - adjective conjugations
+    var start = performance.now();
+
+    var knownVocabRegexString = WKSHData.Vocab.map(getVocabRegex).join("|");
+    var vocabRegex = new RegExp(knownVocabRegexString, 'g');
+    tagMatches(document.body, vocabRegex, 'wkshv');
+
+    Log('replace time: ' + (performance.now() - start));
+}
+
+function tagKnownKanji() {
+    var stringOfKnownKanji = WKSHData.Kanji.map(function(k) { return k.character; }).join('');
+    var kanjiRegex = new RegExp('[' + stringOfKnownKanji + ']', 'g');
+    tagMatches(document.body, kanjiRegex, 'wkshk');
+}
+
+function setTagClassesToSRSLevel() {
+    var taggedKanji = document.getElementsByTagName("wkshk");
+    var matchesKanji = function(k) { return k.character == this; };
+
+    for (var i = 0; i < taggedKanji.length; i++) {
+        character = taggedKanji[i].innerHTML;
+        taggedKanji[i].className += " " + WKSHData.Kanji.find(matchesKanji, character).srs;
+    }
+}
+
+/******************************************************************************
  * *********************** Misc Helper methods ******************************
  * ***************************************************************************/
 
@@ -416,71 +486,7 @@ function addStyles() {
     document.head.appendChild(styles);
 }
 
-//TODO -  this is quite ineffeicient, build the regex at get time
-function getVocabRegex(item) {
-    var infl = '';
-    var stem = item.character;
-    if (item.inflections.length > 0) {
-        infl =  '(' + item.inflections.join('|') + ')';
-        stem =  stem.slice(0, -1);
-    }
-    return '(' + stem + infl + ')';
-}
 
-
-function applyTag(node, match, tagName) {
-    var tag = document.createElement(tagName);
-    node.splitText(match.index+match[0].length);
-    tag.appendChild(node.splitText(match.index));
-    node.parentNode.insertBefore(tag, node.nextSibling);
-}
-
-function tagMatches(element, pattern, tag) {
-    for (var childi = element.childNodes.length; childi-- > 0;) {
-        var child = element.childNodes[childi];
-        if (child.nodeType == 1) {
-            tagMatches(child, pattern, tag);
-        }
-        else if (child.nodeType == 3) {
-            var matches = [];
-            var match;
-            // will return null when no more matches
-            while (match = pattern.exec(child.data)) { // jshint ignore:line
-                matches.push(match);
-            }
-            for (var i = matches.length; i-- > 0;) {
-                applyTag(child, matches[i], tag);
-            }
-        }
-    }
-}
-
-function tagKnownVocab() {
-    //TODO - adjective conjugations
-    var start = performance.now();
-
-    var knownVocabRegexString = WKSHData.Vocab.map(getVocabRegex).join("|");
-    var vocabRegex = new RegExp(knownVocabRegexString, 'g');
-    tagMatches(document.body, vocabRegex, 'wkshv');
-
-    Log('replace time: ' + (performance.now() - start));
-}
-
-function tagKnownKanji() {
-    var stringOfKnownKanji = WKSHData.Kanji.map(function(k) { return k.character; }).join('');
-    var kanjiRegex = new RegExp('[' + stringOfKnownKanji + ']', 'g');
-    tagMatches(document.body, kanjiRegex, 'wkshk');
-}
-
-function setTagClassesToSRSLevel() {
-    var taggedKanji = document.getElementsByTagName("wkshk");
-    var matchesKanji = function(k) { return k.character == this; };
-
-    for (var i = 0; i < taggedKanji.length; i++) {
-        character = taggedKanji[i].innerHTML;
-        taggedKanji[i].className += " " + WKSHData.Kanji.find(matchesKanji, character).srs;
-    }
-}
 
 if (typeof running == 'undefined') running = false;
 function main() {
