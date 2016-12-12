@@ -267,20 +267,22 @@ function getKuruInflections(verb) {
 
 function getIchidanInflections(verb) {
 	var stem = verb.character.slice(0, -1);
-    var endings = ['ない','ます','ません','た','なかった','ました','て','なくて','られる',
-                    'られない','れる','れない', 'させる','させない','させられる','させられない', 'ろ'];
-	return endings.map(function(v) { return stem + v; });
+    var endings = ['る', 'ない','ます','ません','た','なかった','ました', 'ませんでした',
+                    'て','なくて','られる','られない','れる','れない', 'させる',
+                    'させない','させられる','させられない', 'ろ'].sort(byDecreasingWordLength);
+	return endings;
 }
 
 function getGodanInflections(verb) {
+    var plainEnding = verb.character[verb.character.length -1];
     var masuStem = godanPlainToMasuStem(verb.character);
     var potentialStem = godanPlainToESoundStem(verb.character);
     var aSoundStem = godanPlainToASoundStem(verb.character);
-    return [ getGodanNegative(verb), masuStem + "ます", masuStem + "ません", getGodanTa(verb),
-             getGodanNegativePast(verb), masuStem + "ました", getGodanTe(verb), getGodanNegativeTe(verb),
-             potentialStem + "る", potentialStem + "ない", aSoundStem + "れる", aSoundStem + "れない",
-             aSoundStem + "せる", aSoundStem + "せない", aSoundStem + "せられる", aSoundStem + "せられない",
-             potentialStem, verb.character + "な"];
+    return [ plainEnding, getGodanNegative(verb), masuStem + "ます", masuStem + "ません", getGodanTa(verb),
+             getGodanNegativePast(verb), masuStem + "ました", masuStem + 'ませんでした', getGodanTe(verb),
+             getGodanNegativeTe(verb), potentialStem + "る", potentialStem + "ない", aSoundStem + "れる",
+             aSoundStem + "れない", aSoundStem + "せる", aSoundStem + "せない", aSoundStem + "せられる",
+             aSoundStem + "せられない", potentialStem, verb.character + "な"];
 }
 
 function getGodanNegative(verb) {
@@ -298,7 +300,7 @@ function getGodanTa(verb) {
 }
 
 function getGodanTe(verb) {
-    var ending = verb.character.slice(0, -1);
+    var ending = verb.character[verb.character.length -1];
     var te = ending == 'ぐ' || ending == 'ぶ' ? "で" : "て";
     return godanPlainToTeStem(verb.character) + te;
 }
@@ -310,25 +312,25 @@ function getGodanNegativeTe(verb) {
 function godanPlainToTeStem(plainForm) {
     var toTePrefix = {"う":"っ", "つ":"っ", "く":"い", "ぐ":"い",
                      "ぶ":"ん", "む":"ん", "ぬ":"ん", "る":"っ", "す":"し"};
-    return plainForm.slice(0, -1) + toTePrefix[plainForm[plainForm.length -1]];
+    return  toTePrefix[plainForm[plainForm.length -1]];
 }
 
 function godanPlainToMasuStem(plainForm) {
     var toISound = { "う":"い", "つ":"ち", "く":"き", "ぐ":"ぎ",
                      "ぶ":"び", "む":"み", "ぬ":"に", "る":"り", "す":"し"};
-    return plainForm.slice(0, -1) + toISound[plainForm[plainForm.length -1]];
+    return  toISound[plainForm[plainForm.length -1]];
 }
 
 function godanPlainToASoundStem(plainForm) {
     var toASound = { "う":"わ", "つ":"た", "く":"か", "ぐ":"が",
                      "ぶ":"ば", "む":"ま", "ぬ":"な", "る":"ら", "す":"さ"};
-    return plainForm.slice(0, -1) + toASound[plainForm[plainForm.length - 1]];
+    return  toASound[plainForm[plainForm.length - 1]];
 }
 
 function godanPlainToESoundStem(plainForm) {
     var toESound = { "う":"え", "つ":"て", "く":"け", "ぐ":"げ",
                      "ぶ":"べ", "む":"め", "ぬ":"ね", "る":"れ", "す":"せ"};
-    return plainForm.slice(0, -1) + toESound[plainForm[plainForm.length - 1]];
+    return  toESound[plainForm[plainForm.length - 1]];
 }
 
 /******************************************************************************
@@ -378,6 +380,11 @@ function maybeWaitToSetBreakpointsThen(callback) {
     }
 }
 
+// for sorting arrays of words
+function byDecreasingWordLength(a,b) {
+    return b.length - a.length;
+}
+
 /******************************************************************************
  * **************************** Main ******************************************
  * ***************************************************************************/
@@ -410,12 +417,14 @@ function addStyles() {
 }
 
 //TODO -  this is quite ineffeicient, build the regex at get time
-function getVocabRegexFromPlain(item) {
-   var infl = item.inflections.map(
-                function(i) {
-                    return i.substring(item.character.length -1);
-                }).concat(item.character[item.character.length - 1]).join('|');
-       return '(' + item.character.slice(0, -1) + '(' + infl + '))';
+function getVocabRegex(item) {
+    var infl = '';
+    var stem = item.character;
+    if (item.inflections.length > 0) {
+        infl =  '(' + item.inflections.join('|') + ')';
+        stem =  stem.slice(0, -1);
+    }
+    return '(' + stem + infl + ')';
 }
 
 
@@ -439,7 +448,7 @@ function tagMatches(element, pattern, tag) {
             while (match = pattern.exec(child.data)) { // jshint ignore:line
                 matches.push(match);
             }
-            for (var i = matches.length; i -- >0;) {
+            for (var i = matches.length; i-- > 0;) {
                 applyTag(child, matches[i], tag);
             }
         }
@@ -450,7 +459,7 @@ function tagKnownVocab() {
     //TODO - adjective conjugations
     var start = performance.now();
 
-    var knownVocabRegexString = WKSHData.Vocab.map(getVocabRegexFromPlain).join("|");
+    var knownVocabRegexString = WKSHData.Vocab.map(getVocabRegex).join("|");
     var vocabRegex = new RegExp(knownVocabRegexString, 'g');
     tagMatches(document.body, vocabRegex, 'wkshv');
 
