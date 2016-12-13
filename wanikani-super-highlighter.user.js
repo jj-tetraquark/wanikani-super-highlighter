@@ -411,7 +411,7 @@ function tagKnownKanji() {
 }
 
 function setTagClassesToSRSLevel() {
-    setKanjiTagClasesToSRSLevel();
+    setKanjiTagClassesToSRSLevel();
     setVocabTagClassesToSRSLevel();
 }
 
@@ -481,6 +481,10 @@ function maybeWaitToSetBreakpointsThen(callback) {
 // for sorting arrays of words
 function byDecreasingWordLength(a,b) {
     return b.length - a.length;
+}
+
+function range(from, to) {
+    return Array.from(Array(to + 1).keys()).slice(from);
 }
 
 /******************************************************************************
