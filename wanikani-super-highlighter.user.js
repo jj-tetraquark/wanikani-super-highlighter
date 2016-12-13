@@ -162,7 +162,7 @@ function fetchAndCacheAllLearnedWaniKaniItemsThen(apiKey, callback) {
 
 function fetchAndCacheLearnedKanjiThen(apiKey, callback) {
     displayKanjiLoadingMessage();
-    fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, "kanji", "Kanji", "WKLearnedKanji",
+    fetchAndCacheWaniKaniItemsThen(callback, apiKey, "kanji", "Kanji", "WKLearnedKanji", 1, 60,
         function(kanji) {
             return { character   : kanji.character,
                      srs         : getSrs(kanji),
@@ -173,7 +173,7 @@ function fetchAndCacheLearnedKanjiThen(apiKey, callback) {
 
 function fetchAndCacheLearnedVocabThen(apiKey, callback) {
     displayVocabLoadingMessage();
-    fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, "vocabulary", "Vocab", "WKLearnedVocab",
+    fetchAndCacheWaniKaniItemsThen(callback, apiKey, "vocabulary", "Vocab", "WKLearnedVocab", 1, 60,
         function(vocab) {
             return { character   : vocab.character,
                      inflections : getInflections(vocab),
@@ -217,18 +217,49 @@ function fetchAndCacheLearnedWaniKaniItemsThen(callback, apiKey, requestedResour
             var requestData = response.requested_information.general ?
                                 response.requested_information.general : response.requested_information;
             // Sort by length (largest first) here so longer words are matched in the regex later
-            WKSHData[type] = requestData.map(mappingFunction).sort(
-                function(a, b) {
-                    var alen = a.character.length;
-                    var blen = b.character.length;
-                    return alen == blen ? 0 : alen > blen ? -1 : 1;
-            });
+            WKSHData[type] = requestData.map(mappingFunction).sort(byDecreasingWordLength);
 
             GM_setValue(storageKey, JSON.stringify(WKSHData[type]));
             callback();
         })
         .fail(function() {
             Log("Request to WaniKani API failed. Catastrophic failure ermagerd D:", ERROR);
+        });
+}
+
+function fetchAndCacheWaniKaniItemsThen(callback, apiKey, requestedResource, type, storageKey,
+                                                    fromLevel, requestedToLevel, mappingFunction) {
+    var MAX_STEP = 9;
+
+    // Large requests to the api can fail with 503 errors, best to request in steps
+    var toLevel = (requestedToLevel > fromLevel + MAX_STEP) ? fromLevel + MAX_STEP : requestedToLevel;
+    var levels = range(fromLevel, toLevel).join(',');
+    Log('Fetching ' + type + ' from level ' + fromLevel + ' to ' + toLevel);
+
+    $.ajax({url:"https://www.wanikani.com/api/user/" + apiKey + "/" + requestedResource + '/' + levels, dataType:"json"})
+        .done(function(response) {
+            // vocabulary for some reason has everything in a child called general, kanji and radicals do not
+            var requestData = response.requested_information.general ?
+                                response.requested_information.general : response.requested_information;
+
+            WKSHData[type] = WKSHData[type].concat(requestData.map(mappingFunction));
+
+            if (toLevel < requestedToLevel) {
+                return fetchAndCacheWaniKaniItemsThen(callback, apiKey, requestedResource, type, storageKey,
+                                                      toLevel + 1, requestedToLevel, mappingFunction);
+            }
+
+            // All done
+            // Sort by length (largest first) here so longer words are matched in the regex later
+            WKSHData[type].sort(byDecreasingWordLength);
+
+            GM_setValue(storageKey, JSON.stringify(WKSHData[type]));
+            return callback();
+        })
+        .fail(function() {
+            Log("Request to WaniKani API failed. Retrying...", ERROR);
+            return fetchAndCacheWaniKaniItemsThen(callback, apiKey, requestedResource, type, storageKey,
+                                                            fromLevel, requestedToLevel, mappingFunction);
         });
 }
 
