@@ -155,7 +155,6 @@ function fetchAndCacheAllLearnedWaniKaniItemsThen(apiKey, callback) {
            return callback();
        }
     };
-
     fetchAndCacheLearnedKanjiThen(apiKey, callbackOnSecondResponse);
     fetchAndCacheLearnedVocabThen(apiKey, callbackOnSecondResponse);
 }
@@ -176,7 +175,7 @@ function fetchAndCacheLearnedVocabThen(apiKey, callback) {
     fetchAndCacheWaniKaniItemsThen(callback, apiKey, "vocabulary", "Vocab", "WKLearnedVocab", 1, 60,
         function(vocab) {
             return { character   : vocab.character,
-                     inflections : getInflections(vocab),
+                     type        : getType(vocab),
                      meaning     : getMeaning(vocab),
                      kana        : vocab.kana.split(", "),
                      srs         : getSrs(vocab),
@@ -185,15 +184,45 @@ function fetchAndCacheLearnedVocabThen(apiKey, callback) {
         });
 }
 
+function getType(item) {
+    var type = "";
+    if (isVerb(item)) {
+        type = "v";
+        if (isSuru(item)) {
+            type += "s";
+        } else if (item.character === "来る") {
+            type += "k";
+        }
+        else if (isIchidan(item)) {
+            type += "1";
+        }
+        else {
+            endingMap = {"う":"u", "つ":"tsu", "る":"ru", "ぶ":"bu", "む":"mu", "ぬ":"nu", "く":"ku", "ぐ":"gu", "す":"su"};
+            type += "5" + endingMap[item.character.slice(-1)];
+        }
+    }
+    else if (isIAdjective(item)) {
+        type = "i";
+    }
+    else { // nouns and na adjectives
+        type = "n";
+    }
+    return type;
+}
+
 function getInflections(item) {
-    if (isAVerb(item)) {
+    if (isVerb(item)) {
         return getVerbInflections(item);
     }
     return [];
 }
 
-function isAVerb(item) {
-    return item.meaning.startsWith('to ');
+function isVerb(item) {
+    return item.meaning.startsWith('to ') && "うつるぶむぬくぐす".includes(item.character.slice(-1));
+}
+
+function isIAdjective(item) { // This is a bit greedy but rather it be greedy than not matching enough
+    return item.character.endsWith('い');
 }
 
 function getMeaning(item) {
@@ -271,7 +300,7 @@ function getVerbInflections(verb) {
         return getKuruInflections(verb);
     }
     else if (isIchidan(verb)) {
-		return getIchidanInflections(verb);
+		return getIchidanInflections();
 	}
     else {
         return getGodanInflections(verb);
@@ -293,14 +322,12 @@ function isIchidan(verb) {
 }
 
 function getKuruInflections(verb) {
-    return getIchidanInflections(verb);
+    return getIchidanInflections();
 }
 
-function getIchidanInflections(verb) {
-	var stem = verb.character.slice(0, -1);
+function getIchidanInflections() {
     var endings = ['る', 'ない','ます','ません','た','なかった','ました', 'ませんでした',
-                    'て','なくて','られる','られない','れる','れない', 'させる',
-                    'させない','させられる','させられない', 'ろ'].sort(byDecreasingWordLength);
+                    'て','なくて', 'ろ'].sort(byDecreasingWordLength);
 	return endings;
 }
 
@@ -343,25 +370,25 @@ function getGodanNegativeTe(verb) {
 function godanPlainToTeStem(plainForm) {
     var toTePrefix = {"う":"っ", "つ":"っ", "く":"い", "ぐ":"い",
                      "ぶ":"ん", "む":"ん", "ぬ":"ん", "る":"っ", "す":"し"};
-    return  toTePrefix[plainForm[plainForm.length -1]];
+    return  toTePrefix[plainForm.slice(-1)];
 }
 
 function godanPlainToMasuStem(plainForm) {
     var toISound = { "う":"い", "つ":"ち", "く":"き", "ぐ":"ぎ",
                      "ぶ":"び", "む":"み", "ぬ":"に", "る":"り", "す":"し"};
-    return  toISound[plainForm[plainForm.length -1]];
+    return  toISound[plainForm.slice(-1)];
 }
 
 function godanPlainToASoundStem(plainForm) {
     var toASound = { "う":"わ", "つ":"た", "く":"か", "ぐ":"が",
                      "ぶ":"ば", "む":"ま", "ぬ":"な", "る":"ら", "す":"さ"};
-    return  toASound[plainForm[plainForm.length - 1]];
+    return  toASound[plainForm.slice(-1)];
 }
 
 function godanPlainToESoundStem(plainForm) {
     var toESound = { "う":"え", "つ":"て", "く":"け", "ぐ":"げ",
                      "ぶ":"べ", "む":"め", "ぬ":"ね", "る":"れ", "す":"せ"};
-    return  toESound[plainForm[plainForm.length - 1]];
+    return  toESound[plainForm.slice(-1)];
 }
 
 /******************************************************************************
@@ -396,6 +423,42 @@ function getVocabRegex(item) {
     return '(' + stem + infl + ')';
 }
 
+function getVocabOfType(type) {
+    return WKSHData.Vocab.filter(function(item) { return item.type.startsWith(type); });
+}
+
+function arrayOfStems(vocabArray) {
+    return vocabArray.map(function(item) { return item.character.slice(0,-1); });
+}
+
+function getAllPotentialForms() {
+    //TODO suru and kuru
+    var ichidan = getVocabOfType("v1").map(function(verb) { return verb.character.slice(0,-1) + "れる"; }); // the られる is captured by passive form
+    var godan = getVocabOfType("v5").map(function(verb) { return godanPlainToESoundStem(verb.character) + "る"; });
+    return ichidan.concat(godan);
+}
+
+function getAllPassiveForms() {
+    //TODO suru and kuru
+    var ichidan = getVocabOfType("v1").map(function(verb) { return verb.character.slice(0,-1) + "られる"; });
+    var godan = getVocabOfType("v5").map(function(verb) { return godanPlainToASoundStem(verb.character) + "れる"; }); // YOU WERE HERE!!!!!
+}
+
+function getAllCausativeForms() {
+
+}
+
+function buildVocabRegex() {
+    var ichidan = getVocabOfType("v1");
+    var ichidanRegex = "((" + arrayOfStems(ichidan).join("|") + ")(|れ|られ|させ|させられ|させれ)" + "(" + getIchidanInflections() + "))"; // this should cover all forms of ichidan
+
+    var nouns = getVocabOfType("n");
+
+    var regexString = ichidanRegex;
+
+    return new RegExp(regexString, 'g');
+}
+
 
 function applyTag(node, match, tagName) {
     var tag = document.createElement(tagName);
@@ -428,8 +491,9 @@ function tagKnownVocab() {
     //TODO - adjective conjugations
     var start = performance.now();
 
-    var knownVocabRegexString = WKSHData.Vocab.map(getVocabRegex).join("|");
-    var vocabRegex = new RegExp(knownVocabRegexString, 'g');
+    // var knownVocabRegexString = WKSHData.Vocab.map(getVocabRegex).join("|");
+    // var vocabRegex = new RegExp(knownVocabRegexString, 'g');
+    var vocabRegex = buildVocabRegex();
     tagMatches(document.body, vocabRegex, 'wkshv');
 
     Log('replace time: ' + (performance.now() - start));
